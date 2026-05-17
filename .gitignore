@@ -8,3 +8,43 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Environment Variables
+.env
+.env.*
+
+# Database
+*.db
+*.sqlite3
+
+# UV
+.python-version
+uv.lock
+CACHEDIR.TAG
+
+# Byte-compiled
+*.cpython-*.pyc
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# Ngrok
+ngrok

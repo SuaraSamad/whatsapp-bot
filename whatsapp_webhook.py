@@ -1,11 +1,18 @@
-from fastapi import FastAPI, Request, BackgroundTasks # 1. Import BackgroundTasks
+from fastapi import FastAPI, Request, BackgroundTasks
 from whatsapp_client import send_message
 from chatbot import get_response
+from database import init_db  # <--- NEW: Import your DB init
 import os
 
 app = FastAPI()
 
 VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "my_secret_token")
+
+# --- NEW: Initialize Database on Startup ---
+@app.on_event("startup")
+async def startup_event():
+    print("Initializing Database...")
+    init_db()
 
 @app.get("/")
 def root():
@@ -18,27 +25,24 @@ async def verify_webhook(request: Request):
         return int(params.get("hub.challenge"))
     return {"error": "Invalid token"}
 
-# 2. Create a helper function to handle the long-running AI logic
 async def handle_agent_logic(sender: str, text: str):
     try:
-        # Get response from AI agent
-        response = await get_response(text)
-        print(f"Agent response: {response}")
+        # UPDATED: Now passing 'sender' to get_response for SQLite memory
+        response = await get_response(sender, text) 
+        print(f"Agent response for {sender}: {response}")
 
-        # Send response back via WhatsApp
         await send_message(sender, response)
     except Exception as e:
-        print(f"Error in background task: {e}")
+        # This will catch your "Unknown tool type" error if it persists
+        print(f"Error in background task for {sender}: {e}")
 
 @app.post("/webhook")
-async def webhook(request: Request, background_tasks: BackgroundTasks): # 3. Inject background_tasks
+async def webhook(request: Request, background_tasks: BackgroundTasks):
     data = await request.json()
-    print("Incoming webhook:", data)
-
+    
     try:
         changes = data["entry"][0]["changes"][0]["value"]
 
-        # If it's a status update (delivered/read), ignore it early
         if "messages" not in changes:
             return {"status": "ok"}
 
@@ -48,13 +52,11 @@ async def webhook(request: Request, background_tasks: BackgroundTasks): # 3. Inj
 
         sender = msg["from"]
         text = msg["text"]["body"]
-        print(f"Message from {sender}: {text}")
-
-        # 4. Hand off the AI work to the background
+        
+        # Hand off the AI work with the sender's phone number
         background_tasks.add_task(handle_agent_logic, sender, text)
 
     except (KeyError, IndexError) as e:
         print(f"Error parsing webhook: {e}")
 
-    # 5. Return IMMEDIATELY. WhatsApp is now happy.
     return {"status": "ok"}
